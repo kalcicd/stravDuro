@@ -1,6 +1,7 @@
 import argparse
 import requests as req
 import browser_cookie3
+import warnings
 
 
 class Stage:
@@ -11,6 +12,7 @@ class Stage:
 
 class Activity:
     def __init__(self, act_id, cj):
+        self.stage_times = []
         self.act_id = act_id
         # self.name = get_athlete_name(act_id, cj)
 
@@ -25,10 +27,20 @@ class Race:
     def add_stage(self, seg_id):
         if validate_id(seg_id, 'segments', self.cj):
             self.stages.append(Stage(seg_id, self.cj))
+        else:
+            warnings.warn(f'Segment with id "{seg_id}" was not found. Skipping stage...')
 
     def add_activity(self, act_id):
         if validate_id(act_id, 'activities', self.cj):
-            self.activities.append(Stage(act_id, self.cj))
+            self.activities.append(Activity(act_id, self.cj))
+        else:
+            warnings.warn(f'Activity with id "{act_id}" was not found. Skipping activity...')
+
+    def get_segment_times(self):
+        for activity in self.activities:
+            for stage in self.stages:
+                # activity.stage_times.append(get_stage_time(stage.seg_id, self.cj))
+
 
 
 # Validate that segment or activity ID exists
