@@ -1,12 +1,16 @@
 import argparse
 import requests as req
 import browser_cookie3
+from bs4 import BeautifulSoup
 import warnings
 
 
 class Stage:
     def __init__(self, seg_id, cj):
         self.seg_id = seg_id
+        self.raw_html = BeautifulSoup(req.get(f'https://www.strava.com'
+                                              f'/segments/{seg_id}/',
+                                              cookies=cj).text, 'html.parser')
         # self.name = get_segment_name(seg_id, cj)
 
 
@@ -14,6 +18,9 @@ class Activity:
     def __init__(self, act_id, cj):
         self.stage_times = []
         self.act_id = act_id
+        self.raw_html = BeautifulSoup(req.get(f'https://www.strava.com'
+                                              f'/activities/{act_id}/',
+                                              cookies=cj).text, 'html.parser')
         # self.name = get_athlete_name(act_id, cj)
 
 
@@ -27,20 +34,25 @@ class Race:
     def add_stage(self, seg_id):
         if validate_id(seg_id, 'segments', self.cj):
             self.stages.append(Stage(seg_id, self.cj))
+            print(f'Segment with id "{seg_id}" added to the course...')
         else:
-            warnings.warn(f'Segment with id "{seg_id}" was not found. Skipping stage...')
+            warnings.warn(f'Segment with id "{seg_id}" was not found. '
+                          f'Skipping stage...')
 
     def add_activity(self, act_id):
         if validate_id(act_id, 'activities', self.cj):
             self.activities.append(Activity(act_id, self.cj))
+            print(f'Activity with id "{act_id}" added to the race...')
         else:
-            warnings.warn(f'Activity with id "{act_id}" was not found. Skipping activity...')
+            warnings.warn(f'Activity with id "{act_id}" was not found. '
+                          f'Skipping activity...')
 
     def get_segment_times(self):
         for activity in self.activities:
             for stage in self.stages:
+                print(f'checking if activity {activity.act_id} has segment '
+                      f'{stage.seg_id}')
                 # activity.stage_times.append(get_stage_time(stage.seg_id, self.cj))
-
 
 
 # Validate that segment or activity ID exists
@@ -54,7 +66,7 @@ def validate_id(id, type, cj):
 
 # Exports Strava.com cookies from the chosen browser
 def get_strava_cookies(browser):
-    domain = 'www.strava.com'
+    domain = '.strava.com'
     if browser == 'firefox':
         return browser_cookie3.firefox(domain_name=domain)
     if browser == 'chrome':
@@ -65,6 +77,7 @@ def get_strava_cookies(browser):
         return browser_cookie3.edge(domain_name=domain)
 
 
+# Gathers info from command line args
 def parse_cl_args():
     d = 'StravDuro: a tool to hold your own Strava Enduro!'
     u = 'stravDuro.py [--name] N [--activities] A [--segments] S [--browser]' \
@@ -87,7 +100,11 @@ if __name__ == "__main__":
 
     # Use cookies from our browser that is logged in to Strava so we can view
     # segments and activities
-    cj = get_strava_cookies(args.browser)
+    cj = get_strava_cookies(args.browser[0])
     r = Race(args.name, cj)
+    for act_id in args.activities:
+        r.add_activity(act_id)
+    for seg_id in args.segments:
+        r.add_stage(seg_id)
+    r.get_segment_times()
 
-    print(validate_id('6658948635', 'activities', cj))
