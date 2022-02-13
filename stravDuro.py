@@ -1,5 +1,7 @@
 import argparse
+import json
 import requests as req
+import re
 import browser_cookie3
 from bs4 import BeautifulSoup
 import warnings
@@ -8,9 +10,6 @@ import warnings
 class Stage:
     def __init__(self, seg_id, cj):
         self.seg_id = seg_id
-        self.raw_html = BeautifulSoup(req.get(f'https://www.strava.com'
-                                              f'/segments/{seg_id}/',
-                                              cookies=cj).text, 'html.parser')
         # self.name = get_segment_name(seg_id, cj)
 
 
@@ -18,9 +17,11 @@ class Activity:
     def __init__(self, act_id, cj):
         self.stage_times = []
         self.act_id = act_id
-        self.raw_html = BeautifulSoup(req.get(f'https://www.strava.com'
-                                              f'/activities/{act_id}/',
-                                              cookies=cj).text, 'html.parser')
+
+        # This regex selects the unparsed json for all the activity's segments
+        regex_magic = '(?<=pageView.segmentEfforts\(\).reset\()(.*)(?=, { parse: true }\);)'
+        self.segments_json = json.loads(re.search(regex_magic, req.get(f'https://www.strava.com/activities/{act_id}/', cookies=cj).text).group(0))
+        print(self.segments_json)
         # self.name = get_athlete_name(act_id, cj)
 
 
@@ -64,7 +65,7 @@ def validate_id(id, type, cj):
     return False
 
 
-# Exports Strava.com cookies from the chosen browser
+# Gets Strava.com cookies from the chosen browser
 def get_strava_cookies(browser):
     domain = '.strava.com'
     if browser == 'firefox':
