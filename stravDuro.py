@@ -10,7 +10,7 @@ import warnings
 class Stage:
     def __init__(self, seg_id, cj):
         self.seg_id = seg_id
-        # self.name = get_segment_name(seg_id, cj)
+        # todo: self.name
 
 
 class Activity:
@@ -21,8 +21,7 @@ class Activity:
         # This regex selects the unparsed json for all the activity's segments
         regex_magic = '(?<=pageView.segmentEfforts\(\).reset\()(.*)(?=, { parse: true }\);)'
         self.segments_json = json.loads(re.search(regex_magic, req.get(f'https://www.strava.com/activities/{act_id}/', cookies=cj).text).group(0))
-        print(self.segments_json)
-        # self.name = get_athlete_name(act_id, cj)
+        # todo: self.name
 
 
 class Race:
@@ -53,7 +52,26 @@ class Race:
             for stage in self.stages:
                 print(f'checking if activity {activity.act_id} has segment '
                       f'{stage.seg_id}')
-                # activity.stage_times.append(get_stage_time(stage.seg_id, self.cj))
+                all_efforts = activity.segments_json['efforts'] + activity.segments_json['hidden_efforts']
+                seg_found = False
+                for segment in all_efforts:
+                    if segment['segment_id'] == stage.seg_id:
+                        seg_found = True
+                        activity.stage_times.append({
+                            'id': stage.seg_id,
+                            'name': segment['name'],
+                            'time': segment['elapsed_time_raw']
+                        })
+                if not seg_found:
+                    warnings.warn(f'Activity {activity.act_id} does not '
+                                  f'contain segment {stage.seg_id}. Marking as'
+                                  f' DNF...')
+                    activity.stage_times.append({
+                        'id': stage.seg_id,
+                        'time': 'DNF',
+                        # todo: add segment name from stage.name
+                    })
+    # todo: def export_results():
 
 
 # Validate that segment or activity ID exists
@@ -103,9 +121,8 @@ if __name__ == "__main__":
     # segments and activities
     cj = get_strava_cookies(args.browser[0])
     r = Race(args.name, cj)
-    for act_id in args.activities:
-        r.add_activity(act_id)
     for seg_id in args.segments:
         r.add_stage(seg_id)
+    for act_id in args.activities:
+        r.add_activity(act_id)
     r.get_segment_times()
-
