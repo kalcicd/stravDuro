@@ -10,6 +10,12 @@ import warnings
 class Stage:
     def __init__(self, seg_id, cj):
         self.seg_id = seg_id
+        self.seg_link = f'https://www.strava.com/segments/{seg_id}/'
+
+        html_text = req.get(self.seg_link, cookies=cj).text
+        print(html_text)
+        seg_regex = '(?<=new Strava\.Segments\.Initializer\()((.|\n) *)(?=\);)'
+        # self.name = json.loads(re.search(seg_regex, html_text).group(0))['segmentName']
         # todo: self.name
 
 
@@ -17,11 +23,17 @@ class Activity:
     def __init__(self, act_id, cj):
         self.stage_times = []
         self.act_id = act_id
+        self.act_link = f'https://www.strava.com/activities/{act_id}/'
+
+        html_text = req.get(self.act_link, cookies=cj).text
 
         # This regex selects the unparsed json for all the activity's segments
-        regex_magic = '(?<=pageView.segmentEfforts\(\).reset\()(.*)(?=, { parse: true }\);)'
-        self.segments_json = json.loads(re.search(regex_magic, req.get(f'https://www.strava.com/activities/{act_id}/', cookies=cj).text).group(0))
-        # todo: self.name
+        segment_regex = '(?<=pageView\.segmentEfforts\(\)\.reset\()(.*)(?=, { parse: true }\);)'
+        self.segments_json = json.loads(re.search(segment_regex, html_text).group(0))
+
+        # This regex selects the unparsed json for the activity athlete.
+        athlete_regex = '(?<=activityAthlete = new Strava\.Models\.Athlete\()(.*)(?=\);)'
+        self.name = json.loads(re.search(athlete_regex, html_text).group(0))['display_name']
 
 
 class Race:
