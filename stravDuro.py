@@ -3,8 +3,7 @@ import json
 import requests as req
 import re
 import browser_cookie3
-from bs4 import BeautifulSoup
-import warnings
+import xlsxwriter
 
 
 class Stage:
@@ -13,10 +12,10 @@ class Stage:
         self.seg_link = f'https://www.strava.com/segments/{seg_id}/'
 
         html_text = req.get(self.seg_link, cookies=cj).text
-        print(html_text)
-        seg_regex = '(?<=new Strava\.Segments\.Initializer\()((.|\n) *)(?=\);)'
-        # self.name = json.loads(re.search(seg_regex, html_text).group(0))['segmentName']
-        # todo: self.name
+
+        # This regex selects the segment name
+        seg_re = '(?<=segmentName: ")(.*?)(?=")'
+        self.name = re.search(seg_re, html_text).group(0)
 
 
 class Activity:
@@ -28,12 +27,12 @@ class Activity:
         html_text = req.get(self.act_link, cookies=cj).text
 
         # This regex selects the unparsed json for all the activity's segments
-        segment_regex = '(?<=pageView\.segmentEfforts\(\)\.reset\()(.*)(?=, { parse: true }\);)'
-        self.segments_json = json.loads(re.search(segment_regex, html_text).group(0))
+        seg_re = '(?<=pageView\.segmentEfforts\(\)\.reset\()(.*)(?=, { parse: true }\);)'
+        self.segments_json = json.loads(re.search(seg_re, html_text).group(0))
 
         # This regex selects the unparsed json for the activity athlete.
-        athlete_regex = '(?<=activityAthlete = new Strava\.Models\.Athlete\()(.*)(?=\);)'
-        self.name = json.loads(re.search(athlete_regex, html_text).group(0))['display_name']
+        ath_re = '(?<=activityAthlete = new Strava\.Models\.Athlete\()(.*)(?=\);)'
+        self.name = json.loads(re.search(ath_re, html_text).group(0))['display_name']
 
 
 class Race:
@@ -48,42 +47,70 @@ class Race:
             self.stages.append(Stage(seg_id, self.cj))
             print(f'Segment with id "{seg_id}" added to the course...')
         else:
-            warnings.warn(f'Segment with id "{seg_id}" was not found. '
-                          f'Skipping stage...')
+            print(f'WARNING: Segment with id "{seg_id}" was not found. '
+                  f'Skipping stage...')
 
     def add_activity(self, act_id):
         if validate_id(act_id, 'activities', self.cj):
             self.activities.append(Activity(act_id, self.cj))
             print(f'Activity with id "{act_id}" added to the race...')
         else:
-            warnings.warn(f'Activity with id "{act_id}" was not found. '
-                          f'Skipping activity...')
+            print(f'WARNING: Activity with id "{act_id}" was not found. '
+                  f'Skipping activity...')
 
+    # Parses through activities' matched segments for the race stages, then
+    # saves the stage times in the Race object state
     def get_segment_times(self):
         for activity in self.activities:
+            dnf = False
+            total_time = 0
             for stage in self.stages:
-                print(f'checking if activity {activity.act_id} has segment '
-                      f'{stage.seg_id}')
-                all_efforts = activity.segments_json['efforts'] + activity.segments_json['hidden_efforts']
+                all_efforts = activity.segments_json['efforts'] + \
+                              activity.segments_json['hidden_efforts']
                 seg_found = False
                 for segment in all_efforts:
                     if segment['segment_id'] == stage.seg_id:
                         seg_found = True
                         activity.stage_times.append({
                             'id': stage.seg_id,
-                            'name': segment['name'],
-                            'time': segment['elapsed_time_raw']
+                            'name': stage.name,
+                            'time': segment['elapsed_time'],
+                            'time_raw': segment['elapsed_time_raw']
                         })
+                        total_time += segment['elapsed_time_raw']
                 if not seg_found:
-                    warnings.warn(f'Activity {activity.act_id} does not '
-                                  f'contain segment {stage.seg_id}. Marking as'
-                                  f' DNF...')
+                    print(f'WARNING: Activity {activity.act_id} does not '
+                          f'contain segment {stage.seg_id}. Marking as DNF...')
                     activity.stage_times.append({
                         'id': stage.seg_id,
+                        'name': stage.name,
                         'time': 'DNF',
-                        # todo: add segment name from stage.name
+                        'time_raw': 'DNF',
                     })
-    # todo: def export_results():
+                    dnf = True
+            if dnf:
+                activity.total_time = 'DNF'
+            else:
+                activity.total_time = total_time
+
+    # Exports the state of the Race object to a xlsx spreadsheet
+    def export(self):
+        title = f'{self.name}_results.xlsx'.replace(' ', '_')
+        workbook = xlsxwriter.Workbook(title)
+        worksheet = workbook.add_worksheet()
+
+        worksheet.write(1, 0, 'Stages')
+        worksheet.write(0, 1, 'Athletes')
+
+        # Add stage labels
+        col = 2
+        for stage in self.stages:
+            worksheet.write(1, col, stage.name)
+            col += 1
+        worksheet.write(1, col, 'TOTAL')
+
+        workbook.close()
+        print('Race Results successfully exported!')
 
 
 # Validate that segment or activity ID exists
@@ -132,9 +159,10 @@ if __name__ == "__main__":
     # Use cookies from our browser that is logged in to Strava so we can view
     # segments and activities
     cj = get_strava_cookies(args.browser[0])
-    r = Race(args.name, cj)
+    r = Race(args.name[0], cj)
     for seg_id in args.segments:
         r.add_stage(seg_id)
     for act_id in args.activities:
         r.add_activity(act_id)
     r.get_segment_times()
+    r.export()
