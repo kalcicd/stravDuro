@@ -1,4 +1,5 @@
 import argparse
+import time
 import json
 import requests as req
 import re
@@ -89,9 +90,11 @@ class Race:
                     })
                     dnf = True
             if dnf:
-                activity.total_time = 'DNF'
+                activity.total_time = 9999999999
             else:
                 activity.total_time = total_time
+        # Sort by fastest
+        self.activities = sorted(self.activities, key=lambda a: a.total_time)
 
     # Exports the state of the Race object to a xlsx spreadsheet
     def export(self):
@@ -108,6 +111,32 @@ class Race:
             worksheet.write(1, col, stage.name)
             col += 1
         worksheet.write(1, col, 'TOTAL')
+
+        # Add rider name labels
+        row = 2
+        for activity in self.activities:
+            worksheet.write(row, 1, activity.name)
+            row += 1
+
+        # Add stage times
+        row = 2
+        for activity in self.activities:
+            col = 2
+            for stage_time in activity.stage_times:
+                worksheet.write(row, col, stage_time['time'])
+                col += 1
+            row += 1
+
+        # Add total times
+        row = 2
+        col = len(self.stages) + 2
+        for activity in self.activities:
+            if activity.total_time == 9999999999:
+                t = 'DNF'
+            else:
+                t = time.strftime('%M:%S', time.gmtime(activity.total_time))
+            worksheet.write(row, col, t)
+            row += 1
 
         workbook.close()
         print('Race Results successfully exported!')
