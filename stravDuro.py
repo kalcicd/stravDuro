@@ -1,9 +1,9 @@
 import argparse
-import time
-import json
-import requests as req
-import re
 import browser_cookie3
+import json
+import re
+import requests as req
+import time
 import xlsxwriter
 
 
@@ -96,6 +96,10 @@ class Race:
         # Sort by fastest
         self.activities = sorted(self.activities, key=lambda a: a.total_time)
 
+    # Update each stage in each activity's stage_times array with segment place
+    def get_segment_placings(self):
+        print('todo')
+
     # Exports the state of the Race object to a xlsx spreadsheet
     def export(self):
         title = f'{self.name}_results.xlsx'.replace(' ', '_')
@@ -106,17 +110,32 @@ class Race:
         worksheet.write(0, 1, 'Athletes')
 
         # Add stage labels
+        style = workbook.add_format({'bold': True, 'align': 'center'})
         col = 2
         for stage in self.stages:
-            worksheet.write(1, col, stage.name)
+            worksheet.write(1, col, stage.name, style)
+            worksheet.set_column(col, col, len(stage.name) + 2)
             col += 1
         worksheet.write(1, col, 'TOTAL')
 
-        # Add rider name labels
+        # Add place and rider name labels
         row = 2
-        for activity in self.activities:
-            worksheet.write(row, 1, activity.name)
+        longest_name = 0
+        for p, activity in enumerate(self.activities):
+            p_s = {'align': 'right'}
+            n_s = {'bold': True, 'align': 'left'}
+            if p == 0:
+                p_s['bg_color'] = '#bdbd0d'
+            elif p == 1:
+                p_s['bg_color'] = '#b1bdbb'
+            elif p == 2:
+                p_s['bg_color'] = '#6b4941'
+            worksheet.write(row, 0, p + 1, workbook.add_format(p_s))
+            worksheet.write(row, 1, activity.name, workbook.add_format(n_s))
+            if len(activity.name) > longest_name:
+                longest_name = len(activity.name)
             row += 1
+        worksheet.set_column(1, 1, longest_name + 2)
 
         # Add stage times
         row = 2
